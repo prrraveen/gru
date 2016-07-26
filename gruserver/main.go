@@ -79,7 +79,7 @@ var (
 	port     = flag.String("port", ":443", "Port on which server listens")
 	candFile = flag.String("cand", "candidates.txt", "Candidate inforamation")
 	// This is the number of demo questions asked to dummy candidates.
-	maxDemoQns = 25
+	maxDemoQns = flag.Int("max_demo_qns", 25, "Maximum number of demo questions for dummy candidates.")
 	// List of question ids.
 	terminationScore = flag.Int("term_score", 0, "Minimum negative score at which the quiz should be terminated.")
 	questions        []Question
@@ -262,7 +262,14 @@ func stringInSlice(a string, list []string) bool {
 	return false
 }
 
-func shuffle(qns []Question) {
+func shuffleOptions(opts []*interact.Answer) {
+	for i := range opts {
+		j := rand.Intn(i + 1)
+		opts[i], opts[j] = opts[j], opts[i]
+	}
+}
+
+func shuffleQuestions(qns []Question) {
 	for i := range qns {
 		j := rand.Intn(i + 1)
 		qns[i], qns[j] = qns[j], qns[i]
@@ -273,12 +280,12 @@ func onlyDemoQuestions() []Question {
 	var qns []Question
 	count := 0
 	for _, x := range questions {
-		if stringInSlice("demo", x.Tags) && count < maxDemoQns {
+		if stringInSlice("demo", x.Tags) && count < *maxDemoQns {
 			qns = append(qns, x)
 			count++
 		}
 	}
-	shuffle(qns)
+	shuffleQuestions(qns)
 	return qns
 }
 
@@ -287,7 +294,7 @@ func demoCandInfo(token string) Candidate {
 	c.name = token
 	c.email = "no-mail@given"
 	c.validity = time.Now().Add(time.Duration(100 * time.Hour))
-	c.demoQnsToAsk = maxDemoQns
+	c.demoQnsToAsk = *maxDemoQns
 
 	if _, err := os.Stat(fmt.Sprintf("logs/%s.log", token)); os.IsNotExist(err) {
 		f, err := os.OpenFile(fmt.Sprintf("logs/%s.log", token),
@@ -410,7 +417,7 @@ func formQuestion(q Question, score float32) *interact.Question {
 		a := &interact.Answer{Id: o.Uid, Str: o.Str}
 		opts = append(opts, a)
 	}
-
+	shuffleOptions(opts)
 	var isM bool
 	if len(q.Correct) > 1 {
 		isM = true
@@ -797,7 +804,7 @@ func checkQuiz(qns []Question) error {
 			}
 		}
 	}
-	if demoQnCount < maxDemoQns {
+	if demoQnCount < *maxDemoQns {
 		return fmt.Errorf("Need more demo questions in quiz file")
 	}
 	return nil
